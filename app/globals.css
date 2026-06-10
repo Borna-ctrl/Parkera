@@ -1,26 +1,57 @@
 @import "tailwindcss";
 
+/* Parkera designtokens – ljust tema, teal primary, varma neutraler */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #faf9f7; /* varm off-white */
+  --foreground: #1c1917; /* stone-900 */
+  --card: #ffffff;
+  --card-foreground: #1c1917;
+  --primary: #0d9488; /* teal-600 */
+  --primary-foreground: #ffffff;
+  --primary-hover: #0f766e; /* teal-700 */
+  --secondary: #f5f4f1;
+  --secondary-foreground: #292524;
+  --muted: #f5f4f1; /* varm grå */
+  --muted-foreground: #78716c; /* stone-500 */
+  --accent: #ccfbf1; /* teal-100 */
+  --accent-foreground: #134e4a; /* teal-900 */
+  --border: #e7e5e4; /* stone-200 */
+  --input: #e7e5e4;
+  --ring: #0d9488;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --radius: 0.75rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-geist-sans);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
