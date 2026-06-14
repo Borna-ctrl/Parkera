@@ -72,7 +72,7 @@ export async function createBooking(
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "owner_id, status, available_from, available_to, price_per_day, title, owner:profiles!listings_owner_id_fkey(stripe_account_ready)"
+      "owner_id, status, available_from, available_to, price_per_day, title"
     )
     .eq("id", listingId)
     .single();
@@ -83,12 +83,8 @@ export async function createBooking(
   if (listing.owner_id === user.id) {
     return { error: "Du kan inte boka din egen plats." };
   }
-  const ownerReady = relOne<{ stripe_account_ready: boolean }>(
-    listing.owner
-  )?.stripe_account_ready;
-  if (!ownerReady) {
-    return { error: "Uthyraren kan inte ta emot bokningar än." };
-  }
+  // Ingen Stripe-spärr: uthyraren behöver inte ha kopplat konto för att bli bokad.
+  // Stripe-kopplingen efterfrågas först när pengarna ska betalas ut.
   if (
     (listing.available_from && start < listing.available_from) ||
     (listing.available_to && end > listing.available_to)
@@ -128,6 +124,10 @@ export async function createBooking(
       conversation_id: conversationId,
       sender_id: user.id,
       body: `Hej! Jag har skickat en bokningsförfrågan för ${start} – ${end}.`,
+    });
+    // Hyresgästen (avsändaren) markeras läst → uthyraren får oläst-notisen.
+    await supabase.rpc("mark_conversation_read", {
+      p_conversation: conversationId,
     });
   }
 
@@ -238,7 +238,7 @@ export async function startBookingPayment(
   const { data: booking } = await supabase
     .from("bookings")
     .select(
-      "id, status, payment_status, renter_id, listing_id, amount_total, listing:listings!inner(title, owner:profiles!listings_owner_id_fkey(stripe_account_ready))"
+      "id, status, payment_status, renter_id, listing_id, amount_total, stripe_checkout_session_id, listing:listings!inner(title)"
     )
     .eq("id", bookingId)
     .single();
@@ -251,16 +251,16 @@ export async function startBookingPayment(
     return { error: "Bokningen kan inte betalas i sitt nuvarande läge." };
   }
 
-  const listingRel = relOne<{
-    title: string;
-    owner: { stripe_account_ready: boolean } | { stripe_account_ready: boolean }[];
-  }>(booking.listing);
-  const ownerReady = relOne<{ stripe_account_ready: boolean }>(
-    listingRel?.owner
-  )?.stripe_account_ready;
-  if (!ownerReady) {
-    return { error: "Uthyraren kan inte ta emot betalningar just nu." };
+  // Skyddsnät mot dubbelbetalning: om en tidigare session redan betalats (men
+  // webhooken missades) reconcilar vi först och stoppar en ny betalning.
+  if (booking.stripe_checkout_session_id) {
+    const synced = await syncBookingPayment(booking.id);
+    if (synced !== "none") {
+      return { error: "Bokningen är redan betald." };
+    }
   }
+
+  const listingRel = relOne<{ title: string }>(booking.listing);
 
   const amountTotal = booking.amount_total as number | null;
   if (!amountTotal || amountTotal <= 0) {
@@ -282,11 +282,70 @@ export async function startBookingPayment(
         },
       ],
       metadata: { booking_id: booking.id },
-      success_url: `${appUrl()}/dashboard?betalning=ok`,
+      success_url: `${appUrl()}/dashboard?betalning=ok&bokning=${booking.id}`,
       cancel_url: `${appUrl()}/dashboard?betalning=avbruten`,
     });
+
+    // Spara sessions-id så vi kan reconcila mot Stripe om webhooken missas.
+    await createAdminClient()
+      .from("bookings")
+      .update({ stripe_checkout_session_id: session.id })
+      .eq("id", booking.id);
+
     return { url: session.url ?? undefined, id: booking.id };
   } catch {
     return { error: "Kunde inte starta betalningen. Försök igen." };
+  }
+}
+
+/**
+ * Reconcilar en boknings betalning mot Stripe (skyddsnät om webhooken missats).
+ * Returnerar bokningens payment_status efter ev. uppdatering. Ingen revalidatePath –
+ * säker att anropa under render (t.ex. på dashboarden).
+ */
+export async function syncBookingPayment(bookingId: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data: booking } = await admin
+    .from("bookings")
+    .select("id, payment_status, stripe_checkout_session_id")
+    .eq("id", bookingId)
+    .single();
+
+  if (!booking) return "none";
+  if (booking.payment_status !== "none") return booking.payment_status;
+
+  const sessionId = booking.stripe_checkout_session_id as string | null;
+  if (!sessionId) return "none";
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== "paid") return "none";
+
+    const paymentIntentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    let chargeId: string | null = null;
+    if (paymentIntentId) {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      chargeId =
+        typeof pi.latest_charge === "string"
+          ? pi.latest_charge
+          : (pi.latest_charge?.id ?? null);
+    }
+
+    await admin
+      .from("bookings")
+      .update({
+        stripe_payment_intent_id: paymentIntentId ?? null,
+        stripe_charge_id: chargeId,
+        payment_status: "captured",
+      })
+      .eq("id", bookingId)
+      .eq("payment_status", "none");
+
+    return "captured";
+  } catch {
+    return "none";
   }
 }

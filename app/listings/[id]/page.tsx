@@ -39,7 +39,7 @@ export default async function ListingDetailPage({
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "*, listing_images(storage_path, sort_order), owner:profiles!listings_owner_id_fkey(full_name, avatar_url, stripe_account_ready)"
+      "*, listing_images(storage_path, sort_order), owner:profiles!listings_owner_id_fkey(full_name, avatar_url)"
     )
     .eq("id", id)
     .single();
@@ -128,11 +128,7 @@ export default async function ListingDetailPage({
               )}
             </div>
           ) : listing.status === "active" ? (
-            !listing.owner?.stripe_account_ready ? (
-              <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-                Uthyraren kan inte ta emot bokningar än.
-              </div>
-            ) : user ? (
+            user ? (
               <BookingForm
                 listingId={listing.id}
                 pricePerDay={listing.price_per_day}

@@ -43,8 +43,6 @@ export const listingSchema = z.object({
   { message: "Slutdatum måste vara efter startdatum", path: ["available_to"] }
 );
 
-export type ListingInput = z.infer<typeof listingSchema>;
-
 /** Rå input från formuläret innan zod-parsning (lösa typer). */
 export type RawListingInput = {
   title: string;

@@ -35,6 +35,11 @@ export default async function ConversationPage({
     notFound();
   }
 
+  // Markera konversationen som läst för den som öppnar den (nollar oläst-notisen).
+  await supabase.rpc("mark_conversation_read", {
+    p_conversation: conversationId,
+  });
+
   const { data: messages } = await supabase
     .from("messages")
     .select("id, sender_id, body, created_at")

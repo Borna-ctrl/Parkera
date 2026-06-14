@@ -65,6 +65,8 @@ SQL-migrationer ligger i `supabase/migrations/` och körs i nummerordning i
 - `0006_listing_availability.sql` – tillgänglighetsperiod (från/till) på annonser.
 - `0007_avatars.sql` – publik bucket `avatars` för profilbilder + policies.
 - `0008_payments.sql` – Stripe Connect-fält + betalningskolumner + skydds-triggers.
+- `0009_google_profile.sql` – fyller profilnamn/avatar även vid Google-inloggning.
+- `0010_payment_session.sql` – lagrar Checkout-sessionens id för betalnings-reconcile.
 
 **Testdata (valfritt):** `supabase/seed.sql` lägger in 8 exempelannonser. Kör det
 efter migrationerna och efter att du registrerat minst ett konto (annonserna
@@ -85,6 +87,28 @@ Under **Authentication → URL Configuration**:
 
 > Bekräftelsemailet skickar användaren till `/auth/callback`, som växlar koden mot
 > en session och vidarebefordrar till `/dashboard`.
+
+### Logga in med Google (valfritt men rekommenderat)
+
+Knappen **"Fortsätt med Google"** finns redan i appen. Aktivera providern så här:
+
+1. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)):
+   - Skapa/öppna ett projekt → **APIs & Services → OAuth consent screen** → välj
+     *External*, fyll i appnamn och support-mail, spara.
+   - **APIs & Services → Credentials → Create credentials → OAuth client ID** →
+     *Application type: Web application*.
+   - Under **Authorized redirect URIs**, lägg till Supabases callback:
+     `https://<projekt-ref>.supabase.co/auth/v1/callback`
+     (`<projekt-ref>` är samma som i `NEXT_PUBLIC_SUPABASE_URL`).
+   - Skapa → kopiera **Client ID** och **Client secret**.
+2. **Supabase Dashboard → Authentication → Sign In / Providers → Google**: slå på,
+   klistra in Client ID + Client secret, spara.
+3. Säkerställ att **Redirect URLs** (samma ställe som ovan) innehåller
+   `http://localhost:3000/**` och din prod-domän – krävs för retur till `/auth/callback`.
+
+> Google sköter lösenord/identitet; ingen klienthemlighet hamnar i koden (den bor i
+> Supabase). Namn och profilbild hämtas automatiskt från Google via
+> `0009_google_profile.sql`.
 
 ## 6. Stripe (betalning, testläge)
 

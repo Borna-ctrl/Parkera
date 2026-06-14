@@ -76,6 +76,11 @@ export async function sendMessage(
 
   if (error) return { error: "Kunde inte skicka meddelandet." };
 
+  // Avsändaren har "läst" sin egen konversation (notifieras inte om eget meddelande).
+  await supabase.rpc("mark_conversation_read", {
+    p_conversation: parsed.data.conversationId,
+  });
+
   revalidatePath(`/messages/${conversationId}`);
   revalidatePath("/messages");
   return { success: true };

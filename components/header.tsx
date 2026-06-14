@@ -12,6 +12,21 @@ export async function Header() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let unread = 0;
+  if (user) {
+    const { data: convos } = await supabase
+      .from("conversations")
+      .select(
+        "owner_id, renter_id, last_message_at, owner_last_read_at, renter_last_read_at"
+      )
+      .or(`owner_id.eq.${user.id},renter_id.eq.${user.id}`);
+    unread = (convos ?? []).filter((c) => {
+      const lastRead =
+        c.owner_id === user.id ? c.owner_last_read_at : c.renter_last_read_at;
+      return new Date(c.last_message_at) > new Date(lastRead);
+    }).length;
+  }
+
   return (
     <>
       <header className="border-b border-border bg-card">
@@ -28,7 +43,14 @@ export async function Header() {
           {user ? (
             <>
               <Button asChild variant="ghost" size="sm">
-                <Link href="/messages">Meddelanden</Link>
+                <Link href="/messages" className="relative">
+                  Meddelanden
+                  {unread > 0 && (
+                    <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+                      {unread}
+                    </span>
+                  )}
+                </Link>
               </Button>
               <Button asChild variant="ghost" size="sm">
                 <Link href="/dashboard">Mina sidor</Link>

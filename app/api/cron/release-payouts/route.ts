@@ -39,6 +39,8 @@ export async function GET(request: Request) {
       : null;
     const account = owner?.stripe_account_id as string | undefined;
 
+    // Uthyrare som ännu inte kopplat Stripe hoppas över – bokningen förblir
+    // 'captured' och plockas upp automatiskt vid en senare körning när de kopplat.
     if (!account || !b.stripe_charge_id || !b.amount_total) continue;
 
     try {

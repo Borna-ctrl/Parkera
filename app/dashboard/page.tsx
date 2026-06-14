@@ -7,6 +7,7 @@ import {
   type BookingCardData,
 } from "@/components/booking-request-card";
 import { ConnectButton } from "@/components/connect-button";
+import { ListingCard, type ListingCardData } from "@/components/listing-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
+import { syncBookingPayment } from "@/lib/bookings/actions";
 
 type Rel<T> = T | T[] | null;
 
@@ -47,23 +49,56 @@ export default async function DashboardPage() {
   const { data: incoming } = await supabase
     .from("bookings")
     .select(
-      "id, start_date, end_date, status, payment_status, amount_total, listing:listings!inner(id, title, price_per_day, owner_id), renter:profiles!bookings_renter_id_fkey(full_name)"
+      "id, start_date, end_date, status, payment_status, amount_total, listing:listings!inner(id, title, price_per_day, owner_id, status), renter:profiles!bookings_renter_id_fkey(full_name)"
     )
     .eq("listing.owner_id", user.id)
     .order("created_at", { ascending: false });
 
+  const { data: myListings } = await supabase
+    .from("listings")
+    .select(
+      "id, title, district, price_per_day, parking_type, listing_images(storage_path, sort_order)"
+    )
+    .eq("owner_id", user.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  // Intjänat men ännu ej utbetalt (väntar på Stripe-koppling / cron-körning).
+  const pendingPayoutKr = Math.round(
+    (incoming ?? [])
+      .filter((b) => b.payment_status === "captured")
+      .reduce((sum, b) => sum + (b.amount_total ?? 0), 0) / 100
+  );
+
   const { data: outgoing } = await supabase
     .from("bookings")
     .select(
-      "id, start_date, end_date, status, payment_status, amount_total, listing:listings!inner(id, title, price_per_day)"
+      "id, start_date, end_date, status, payment_status, amount_total, stripe_checkout_session_id, listing:listings!inner(id, title, price_per_day, status)"
     )
     .eq("renter_id", user.id)
     .order("created_at", { ascending: false });
 
+  // Skyddsnät: reconcila betalningar mot Stripe ifall en webhook missats.
+  const reconciled = new Map<string, string>();
+  for (const b of outgoing ?? []) {
+    if (
+      b.status === "accepted" &&
+      b.payment_status === "none" &&
+      b.stripe_checkout_session_id
+    ) {
+      reconciled.set(b.id, await syncBookingPayment(b.id));
+    }
+  }
+
+  type ListingRel = {
+    id: string;
+    title: string;
+    price_per_day: number;
+    status: string;
+  };
+
   const incomingCards: BookingCardData[] = (incoming ?? []).map((b) => {
-    const l = one<{ id: string; title: string; price_per_day: number }>(
-      b.listing
-    );
+    const l = one<ListingRel>(b.listing);
     const r = one<{ full_name: string | null }>(b.renter);
     return {
       id: b.id,
@@ -74,24 +109,24 @@ export default async function DashboardPage() {
       amountTotal: b.amount_total,
       listingId: l?.id ?? "",
       listingTitle: l?.title ?? "Annons",
+      listingStatus: l?.status,
       pricePerDay: l?.price_per_day ?? 0,
       counterpart: r?.full_name?.trim() || "Hyresgäst",
     };
   });
 
   const outgoingCards: BookingCardData[] = (outgoing ?? []).map((b) => {
-    const l = one<{ id: string; title: string; price_per_day: number }>(
-      b.listing
-    );
+    const l = one<ListingRel>(b.listing);
     return {
       id: b.id,
       start_date: b.start_date,
       end_date: b.end_date,
       status: b.status,
-      paymentStatus: b.payment_status,
+      paymentStatus: reconciled.get(b.id) ?? b.payment_status,
       amountTotal: b.amount_total,
       listingId: l?.id ?? "",
       listingTitle: l?.title ?? "Annons",
+      listingStatus: l?.status,
       pricePerDay: l?.price_per_day ?? 0,
     };
   });
@@ -141,23 +176,65 @@ export default async function DashboardPage() {
             <CardTitle>Utbetalningar</CardTitle>
             <CardDescription>
               {payoutReady
-                ? "Ditt Stripe-konto är kopplat – du kan ta emot betalningar."
-                : "Koppla ett Stripe-konto för att kunna ta emot betalning för dina uthyrningar."}
+                ? "Ditt utbetalningskonto är kopplat – pengarna betalas ut automatiskt efter avslutad uthyrning."
+                : pendingPayoutKr > 0
+                  ? `Du har ${pendingPayoutKr} kr att få utbetalt. Koppla ditt konto för att ta emot pengarna.`
+                  : "Du kan ta emot bokningar direkt. Koppla utbetalning när du vill – det behövs först när du har fått betalt för en uthyrning."}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {payoutReady ? (
               <p className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
                 <CheckCircle2 className="h-4 w-4" /> Klart
+                {pendingPayoutKr > 0 && (
+                  <span className="text-muted-foreground">
+                    · {pendingPayoutKr} kr på väg
+                  </span>
+                )}
               </p>
             ) : (
               <ConnectButton
-                label={payoutStarted ? "Slutför Stripe-koppling" : "Koppla Stripe"}
+                label={
+                  payoutStarted
+                    ? "Slutför kopplingen"
+                    : pendingPayoutKr > 0
+                      ? "Koppla konto & få betalt"
+                      : "Koppla utbetalning"
+                }
               />
             )}
           </CardContent>
         </Card>
       </div>
+
+      <section className="mt-10">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight">Mina annonser</h2>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/listings/new">Ny annons</Link>
+          </Button>
+        </div>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Dina aktiva annonser som är synliga för andra.
+        </p>
+        <div className="mt-4">
+          {(myListings ?? []).length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-8 text-center text-sm text-muted-foreground">
+              Du har inga aktiva annonser än.{" "}
+              <Link href="/listings/new" className="text-primary hover:underline">
+                Skapa din första
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {(myListings ?? []).map((l) => (
+                <ListingCard key={l.id} listing={l as ListingCardData} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold tracking-tight">

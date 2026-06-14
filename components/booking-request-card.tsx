@@ -20,6 +20,7 @@ export type BookingCardData = {
   amountTotal?: number | null;
   listingId: string;
   listingTitle: string;
+  listingStatus?: string;
   pricePerDay: number;
   counterpart?: string;
 };
@@ -78,6 +79,7 @@ export function BookingRequestCard({
     booking.amountTotal != null
       ? Math.round(booking.amountTotal / 100)
       : days * booking.pricePerDay;
+  const removed = booking.listingStatus === "removed";
   const awaitingPayment =
     booking.status === "accepted" &&
     (!booking.paymentStatus || booking.paymentStatus === "none");
@@ -133,6 +135,11 @@ export function BookingRequestCard({
           )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
+          {removed && (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              Borttagen annons
+            </span>
+          )}
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}
           >
@@ -146,7 +153,7 @@ export function BookingRequestCard({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      {booking.status === "pending" && perspective === "owner" && (
+      {booking.status === "pending" && perspective === "owner" && !removed && (
         <div className="flex gap-2">
           <Button size="sm" onClick={() => act("accept")} disabled={pending}>
             Acceptera
@@ -162,7 +169,7 @@ export function BookingRequestCard({
         </div>
       )}
 
-      {booking.status === "pending" && perspective === "renter" && (
+      {booking.status === "pending" && perspective === "renter" && !removed && (
         <div>
           <Button
             size="sm"
@@ -175,7 +182,7 @@ export function BookingRequestCard({
         </div>
       )}
 
-      {awaitingPayment && perspective === "renter" && (
+      {awaitingPayment && perspective === "renter" && !removed && (
         <div className="flex gap-2">
           <Button size="sm" onClick={pay} disabled={pending}>
             {pending ? "Öppnar…" : "Betala nu"}
