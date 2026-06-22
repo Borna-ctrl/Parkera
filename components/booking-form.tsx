@@ -59,12 +59,9 @@ export function BookingForm({
   let total = 0;
   let priceLabel = "";
   if (days >= 31 && pricePerMonth) {
-    const fullMonths = Math.floor(days / 30);
-    const remainingDays = days % 30;
-    total = fullMonths * pricePerMonth + remainingDays * pricePerDay;
-    priceLabel = remainingDays > 0
-      ? `${fullMonths} mån + ${remainingDays} dygn (månadspris)`
-      : `${fullMonths} mån (månadspris)`;
+    const months = Math.ceil(days / 30);
+    total = months * pricePerMonth;
+    priceLabel = `${months} mån × ${pricePerMonth} kr (månadspris)`;
   } else {
     total = days * pricePerDay;
     priceLabel = `${days} dygn × ${pricePerDay} kr`;
