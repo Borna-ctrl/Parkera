@@ -103,7 +103,7 @@ export async function createBooking(
   const monthPrice = listing.price_per_month as number | null;
   let amountTotal: number;
   if (days >= 31 && monthPrice) {
-    amountTotal = Math.ceil(days / 30) * monthPrice * 100;
+    amountTotal = Math.floor(days / 30) * monthPrice * 100;
   } else {
     amountTotal = days * listing.price_per_day * 100;
   }
