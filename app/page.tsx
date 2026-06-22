@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Search, MessageCircle, CheckCircle2, CreditCard } from "lucide-react";
 
 import { ListingFilters } from "@/components/listing-filters";
 import { ListingGrid } from "@/components/listing-grid";
@@ -17,7 +18,7 @@ export default async function Home({
   let query = supabase
     .from("listings")
     .select(
-      "id, title, district, price_per_day, parking_type, listing_images(storage_path, sort_order)"
+      "id, title, district, price_per_day, price_per_month, parking_type, listing_images(storage_path, sort_order)"
     )
     .eq("status", "active")
     .order("created_at", { ascending: false });
@@ -53,6 +54,26 @@ export default async function Home({
         <p className="max-w-xl text-muted-foreground text-pretty">
           Privata parkeringsplatser i Göteborg, bokade direkt av ägaren.
         </p>
+      </section>
+
+      <section className="my-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { icon: Search, title: "Hitta en plats", desc: "Bläddra bland privata parkeringsplatser i Göteborg." },
+          { icon: MessageCircle, title: "Skicka förfrågan", desc: "Välj dagar och skicka en bokningsförfrågan direkt till ägaren." },
+          { icon: CheckCircle2, title: "Vänta på svar", desc: "Uthyraren accepterar eller avböjer – du får besked i Meddelanden." },
+          { icon: CreditCard, title: "Betala & parkera", desc: "Betala säkert via Stripe och få adressen." },
+        ].map(({ icon: Icon, title, desc }, i) => (
+          <div key={title} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                {i + 1}
+              </span>
+              <Icon className="h-4 w-4 text-primary" />
+            </div>
+            <p className="font-semibold">{title}</p>
+            <p className="text-sm text-muted-foreground">{desc}</p>
+          </div>
+        ))}
       </section>
 
       <Suspense>

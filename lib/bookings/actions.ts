@@ -72,7 +72,7 @@ export async function createBooking(
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "owner_id, status, available_from, available_to, price_per_day, title"
+      "owner_id, status, available_from, available_to, price_per_day, price_per_month, title"
     )
     .eq("id", listingId)
     .single();
@@ -99,7 +99,16 @@ export async function createBooking(
     return { error: "De valda datumen är redan bokade." };
   }
 
-  const amountTotal = dayCount(start, end) * listing.price_per_day * 100; // öre
+  const days = dayCount(start, end);
+  const monthPrice = listing.price_per_month as number | null;
+  let amountTotal: number;
+  if (days >= 31 && monthPrice) {
+    const fullMonths = Math.floor(days / 30);
+    const remainingDays = days % 30;
+    amountTotal = (fullMonths * monthPrice + remainingDays * listing.price_per_day) * 100;
+  } else {
+    amountTotal = days * listing.price_per_day * 100;
+  }
 
   const { data: booking, error } = await supabase
     .from("bookings")
@@ -213,7 +222,10 @@ export async function transitionBooking(
 
   const { error } = await admin
     .from("bookings")
-    .update({ status: newStatus })
+    .update({
+      status: newStatus,
+      ...(newStatus === "accepted" ? { accepted_at: new Date().toISOString() } : {}),
+    })
     .eq("id", bookingId);
   if (error) return { error: "Kunde inte uppdatera bokningen." };
 
@@ -238,7 +250,7 @@ export async function startBookingPayment(
   const { data: booking } = await supabase
     .from("bookings")
     .select(
-      "id, status, payment_status, renter_id, listing_id, amount_total, stripe_checkout_session_id, listing:listings!inner(title)"
+      "id, status, payment_status, renter_id, listing_id, amount_total, accepted_at, stripe_checkout_session_id, listing:listings!inner(title)"
     )
     .eq("id", bookingId)
     .single();
@@ -249,6 +261,19 @@ export async function startBookingPayment(
   }
   if (booking.status !== "accepted" || booking.payment_status !== "none") {
     return { error: "Bokningen kan inte betalas i sitt nuvarande läge." };
+  }
+
+  // Kontrollera 1-timmes betalningsgräns.
+  if (booking.accepted_at) {
+    const deadline = new Date(booking.accepted_at as string).getTime() + 60 * 60 * 1000;
+    if (Date.now() > deadline) {
+      await createAdminClient()
+        .from("bookings")
+        .update({ status: "cancelled" })
+        .eq("id", bookingId)
+        .eq("payment_status", "none");
+      return { error: "Betalningstiden har gått ut. Bokningen är avbokad." };
+    }
   }
 
   // Skyddsnät mot dubbelbetalning: om en tidigare session redan betalats (men

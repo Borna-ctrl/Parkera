@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { listingSchema, type RawListingInput } from "@/lib/validation";
 
 export type ListingActionState = { error?: string; id?: string };
@@ -27,7 +28,7 @@ export async function createListing(
     return { error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
   }
 
-  const { image_paths, address, available_from, available_to, ...fields } =
+  const { image_paths, address, available_from, available_to, price_per_month, ...fields } =
     parsed.data;
 
   const { data: listing, error } = await supabase
@@ -37,6 +38,7 @@ export async function createListing(
       address: address || null,
       available_from: available_from || null,
       available_to: available_to || null,
+      price_per_month: price_per_month ?? null,
       owner_id: user.id,
     })
     .select("id")
@@ -72,7 +74,7 @@ export async function updateListing(
     return { error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
   }
 
-  const { image_paths, address, available_from, available_to, ...fields } =
+  const { image_paths, address, available_from, available_to, price_per_month, ...fields } =
     parsed.data;
 
   const { error } = await supabase
@@ -82,6 +84,7 @@ export async function updateListing(
       address: address || null,
       available_from: available_from || null,
       available_to: available_to || null,
+      price_per_month: price_per_month ?? null,
     })
     .eq("id", id)
     .eq("owner_id", user.id);
@@ -111,11 +114,22 @@ export async function removeListing(id: string): Promise<void> {
   const { supabase, user } = await requireUser();
   if (!user) return;
 
-  await supabase
+  const { error } = await supabase
     .from("listings")
     .update({ status: "removed" })
     .eq("id", id)
     .eq("owner_id", user.id);
+
+  // Avboka öppna, obetalda bokningar på annonsen (service_role pga guard-trigger).
+  // Betalda bokningar lämnas orörda – de är en kvarstående förpliktelse.
+  if (!error) {
+    await createAdminClient()
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("listing_id", id)
+      .eq("payment_status", "none")
+      .in("status", ["pending", "accepted"]);
+  }
 
   revalidatePath("/");
   revalidatePath("/dashboard");

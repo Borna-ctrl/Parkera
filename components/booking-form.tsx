@@ -21,12 +21,14 @@ function dayCount(range: DateRange): number {
 export function BookingForm({
   listingId,
   pricePerDay,
+  pricePerMonth,
   blocked,
   availableFrom,
   availableTo,
 }: {
   listingId: string;
   pricePerDay: number;
+  pricePerMonth?: number;
   blocked: BlockedRange[];
   availableFrom?: string | null;
   availableTo?: string | null;
@@ -54,7 +56,19 @@ export function BookingForm({
   ];
 
   const days = range ? dayCount(range) : 0;
-  const total = days * pricePerDay;
+  let total = 0;
+  let priceLabel = "";
+  if (days >= 31 && pricePerMonth) {
+    const fullMonths = Math.floor(days / 30);
+    const remainingDays = days % 30;
+    total = fullMonths * pricePerMonth + remainingDays * pricePerDay;
+    priceLabel = remainingDays > 0
+      ? `${fullMonths} mån + ${remainingDays} dygn (månadspris)`
+      : `${fullMonths} mån (månadspris)`;
+  } else {
+    total = days * pricePerDay;
+    priceLabel = `${days} dygn × ${pricePerDay} kr`;
+  }
 
   async function handleSubmit() {
     if (!range?.from || !range?.to) {
@@ -125,9 +139,7 @@ export function BookingForm({
 
       {days > 0 && (
         <div className="mt-2 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            {days} dygn × {pricePerDay} kr
-          </span>
+          <span className="text-muted-foreground">{priceLabel}</span>
           <span className="font-semibold">{total} kr</span>
         </div>
       )}

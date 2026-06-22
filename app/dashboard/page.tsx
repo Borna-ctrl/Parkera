@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { syncBookingPayment } from "@/lib/bookings/actions";
 
 type Rel<T> = T | T[] | null;
@@ -73,20 +74,31 @@ export default async function DashboardPage() {
   const { data: outgoing } = await supabase
     .from("bookings")
     .select(
-      "id, start_date, end_date, status, payment_status, amount_total, stripe_checkout_session_id, listing:listings!inner(id, title, price_per_day, status)"
+      "id, start_date, end_date, status, payment_status, amount_total, accepted_at, stripe_checkout_session_id, listing:listings!inner(id, title, price_per_day, status)"
     )
     .eq("renter_id", user.id)
     .order("created_at", { ascending: false });
 
-  // Skyddsnät: reconcila betalningar mot Stripe ifall en webhook missats.
+  // Skyddsnät: reconcila betalningar + avboka utgångna (>1h utan betalning).
   const reconciled = new Map<string, string>();
+  const expired = new Set<string>();
+  const admin = createAdminClient();
+  const oneHourAgo = Date.now() - 3_600_000;
+
   for (const b of outgoing ?? []) {
-    if (
-      b.status === "accepted" &&
-      b.payment_status === "none" &&
-      b.stripe_checkout_session_id
-    ) {
-      reconciled.set(b.id, await syncBookingPayment(b.id));
+    if (b.status === "accepted" && b.payment_status === "none") {
+      if (b.accepted_at && new Date(b.accepted_at as string).getTime() < oneHourAgo) {
+        await admin
+          .from("bookings")
+          .update({ status: "cancelled" })
+          .eq("id", b.id)
+          .eq("payment_status", "none");
+        expired.add(b.id);
+        continue;
+      }
+      if (b.stripe_checkout_session_id) {
+        reconciled.set(b.id, await syncBookingPayment(b.id));
+      }
     }
   }
 
@@ -121,13 +133,14 @@ export default async function DashboardPage() {
       id: b.id,
       start_date: b.start_date,
       end_date: b.end_date,
-      status: b.status,
+      status: expired.has(b.id) ? "cancelled" : b.status,
       paymentStatus: reconciled.get(b.id) ?? b.payment_status,
       amountTotal: b.amount_total,
       listingId: l?.id ?? "",
       listingTitle: l?.title ?? "Annons",
       listingStatus: l?.status,
       pricePerDay: l?.price_per_day ?? 0,
+      acceptedAt: b.accepted_at as string | undefined ?? undefined,
     };
   });
 

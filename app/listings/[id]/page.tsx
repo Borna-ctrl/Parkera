@@ -76,13 +76,20 @@ export default async function ListingDetailPage({
             </p>
           </div>
 
-          <p className="text-2xl font-bold text-primary">
-            {listing.price_per_day} kr
-            <span className="text-base font-normal text-muted-foreground">
-              {" "}
-              / dygn
-            </span>
-          </p>
+          <div>
+            <p className="text-2xl font-bold text-primary">
+              {listing.price_per_day} kr
+              <span className="text-base font-normal text-muted-foreground">
+                {" "}
+                / dygn
+              </span>
+            </p>
+            {listing.price_per_month && (
+              <p className="text-sm text-muted-foreground">
+                {listing.price_per_month} kr / mån (vid 31+ dagar)
+              </p>
+            )}
+          </div>
 
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <CalendarDays className="h-4 w-4" />
@@ -132,6 +139,7 @@ export default async function ListingDetailPage({
               <BookingForm
                 listingId={listing.id}
                 pricePerDay={listing.price_per_day}
+                pricePerMonth={listing.price_per_month ?? undefined}
                 blocked={blocked}
                 availableFrom={listing.available_from}
                 availableTo={listing.available_to}

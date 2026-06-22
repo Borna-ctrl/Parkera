@@ -29,6 +29,23 @@ export async function GET(request: Request) {
     .eq("payment_status", "captured")
     .lte("start_date", cutoff);
 
+  // Avboka bokningar där hyresgästen inte betalat inom 1 timme efter accept.
+  const expiryCutoff = new Date(Date.now() - 3_600_000).toISOString();
+  const { data: overdue } = await admin
+    .from("bookings")
+    .select("id")
+    .eq("status", "accepted")
+    .eq("payment_status", "none")
+    .lt("accepted_at", expiryCutoff)
+    .not("accepted_at", "is", null);
+  for (const b of overdue ?? []) {
+    await admin
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", b.id)
+      .eq("payment_status", "none");
+  }
+
   let released = 0;
   for (const b of due ?? []) {
     const listing = Array.isArray(b.listing) ? b.listing[0] : b.listing;

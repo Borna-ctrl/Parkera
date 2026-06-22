@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -23,6 +23,7 @@ export type BookingCardData = {
   listingStatus?: string;
   pricePerDay: number;
   counterpart?: string;
+  acceptedAt?: string;
 };
 
 const STATUS: Record<string, { label: string; className: string }> = {
@@ -69,6 +70,16 @@ export function BookingRequestCard({
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!booking.acceptedAt || booking.paymentStatus !== "none" || booking.status !== "accepted") return;
+    const deadline = new Date(booking.acceptedAt).getTime() + 60 * 60 * 1000;
+    const tick = () => setTimeLeft(Math.max(0, deadline - Date.now()));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [booking.acceptedAt, booking.paymentStatus, booking.status]);
 
   const status = STATUS[booking.status] ?? {
     label: booking.status,
@@ -183,19 +194,35 @@ export function BookingRequestCard({
       )}
 
       {awaitingPayment && perspective === "renter" && !removed && (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={pay} disabled={pending}>
-            {pending ? "Öppnar…" : "Betala nu"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => act("cancel")}
-            disabled={pending}
-          >
-            Avboka
-          </Button>
-        </div>
+        <>
+          {timeLeft !== null && timeLeft <= 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Betalningstiden gick ut — bokningen avbokas automatiskt.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {timeLeft !== null && timeLeft > 0 && (
+                <p className="text-sm font-medium text-destructive">
+                  ⏱ {Math.floor(timeLeft / 60000)} min{" "}
+                  {Math.floor((timeLeft % 60000) / 1000)} sek kvar att betala
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={pay} disabled={pending}>
+                  {pending ? "Öppnar…" : "Betala nu"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => act("cancel")}
+                  disabled={pending}
+                >
+                  Avboka
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
