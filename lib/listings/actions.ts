@@ -28,7 +28,7 @@ export async function createListing(
     return { error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
   }
 
-  const { image_paths, address, available_from, available_to, price_per_month, ...fields } =
+  const { image_paths, address, available_from, available_to, price_per_week, price_per_month, ...fields } =
     parsed.data;
 
   const { data: listing, error } = await supabase
@@ -38,6 +38,7 @@ export async function createListing(
       address: address || null,
       available_from: available_from || null,
       available_to: available_to || null,
+      price_per_week: price_per_week ?? null,
       price_per_month: price_per_month ?? null,
       owner_id: user.id,
     })
@@ -74,7 +75,7 @@ export async function updateListing(
     return { error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter." };
   }
 
-  const { image_paths, address, available_from, available_to, price_per_month, ...fields } =
+  const { image_paths, address, available_from, available_to, price_per_week, price_per_month, ...fields } =
     parsed.data;
 
   const { error } = await supabase
@@ -84,6 +85,7 @@ export async function updateListing(
       address: address || null,
       available_from: available_from || null,
       available_to: available_to || null,
+      price_per_week: price_per_week ?? null,
       price_per_month: price_per_month ?? null,
     })
     .eq("id", id)

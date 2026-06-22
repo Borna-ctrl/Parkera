@@ -10,6 +10,7 @@ export type ListingCardData = {
   title: string;
   district: string;
   price_per_day: number;
+  price_per_week?: number | null;
   price_per_month?: number | null;
   parking_type: string;
   listing_images: { storage_path: string; sort_order: number }[];
@@ -53,6 +54,11 @@ export function ListingCard({ listing }: { listing: ListingCardData }) {
             / dygn
           </span>
         </p>
+        {listing.price_per_week && (
+          <p className="text-xs text-muted-foreground">
+            från {listing.price_per_week} kr / v
+          </p>
+        )}
         {listing.price_per_month && (
           <p className="text-xs text-muted-foreground">
             från {listing.price_per_month} kr / mån

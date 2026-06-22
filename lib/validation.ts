@@ -27,6 +27,13 @@ export const listingSchema = z.object({
     .int("Priset måste vara ett heltal")
     .min(1, "Ange ett pris per dygn")
     .max(100000, "Priset är orimligt högt"),
+  price_per_week: z.coerce
+    .number()
+    .int("Veckopriset måste vara ett heltal")
+    .min(0, "Veckopriset kan inte vara negativt")
+    .max(1000000, "Priset är orimligt högt")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
   price_per_month: z.coerce
     .number()
     .int("Månadspriset måste vara ett heltal")
@@ -58,6 +65,7 @@ export type RawListingInput = {
   district: string;
   address?: string;
   price_per_day: number;
+  price_per_week?: number | "";
   price_per_month?: number | "";
   image_paths: string[];
   available_from?: string;

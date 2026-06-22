@@ -24,6 +24,7 @@ export type ListingFormValues = {
   district: string;
   address: string;
   price_per_day: number | "";
+  price_per_week?: number | "";
   price_per_month?: number | "";
   image_paths: string[];
   available_from?: string;
@@ -70,6 +71,7 @@ export function ListingForm({
     setPending(true);
 
     const formData = new FormData(event.currentTarget);
+    const rawWeek = formData.get("price_per_week");
     const rawMonth = formData.get("price_per_month");
     const input = {
       title: String(formData.get("title") ?? ""),
@@ -78,6 +80,7 @@ export function ListingForm({
       district: String(formData.get("district") ?? ""),
       address: String(formData.get("address") ?? ""),
       price_per_day: Number(formData.get("price_per_day") ?? 0),
+      price_per_week: rawWeek ? Number(rawWeek) : undefined,
       price_per_month: rawMonth ? Number(rawMonth) : undefined,
       image_paths: imagePaths,
       available_from: availability?.from ? toISODate(availability.from) : "",
@@ -176,9 +179,9 @@ export function ListingForm({
         />
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-5 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="price_per_day">Pris per dygn (kr)</Label>
+          <Label htmlFor="price_per_day">Dagspris (kr)</Label>
           <Input
             id="price_per_day"
             name="price_per_day"
@@ -188,6 +191,19 @@ export function ListingForm({
             inputMode="numeric"
             defaultValue={initial?.price_per_day || ""}
             placeholder="T.ex. 80"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="price_per_week">Veckopris (kr, valfritt)</Label>
+          <Input
+            id="price_per_week"
+            name="price_per_week"
+            type="number"
+            min={0}
+            inputMode="numeric"
+            defaultValue={initial?.price_per_week || ""}
+            placeholder="T.ex. 450"
           />
         </div>
 
@@ -202,11 +218,11 @@ export function ListingForm({
             defaultValue={initial?.price_per_month || ""}
             placeholder="T.ex. 1 800"
           />
-          <p className="text-xs text-muted-foreground">
-            Används automatiskt för bokningar på 31+ dagar.
-          </p>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        Veckopris gäller vid 7+ dagar, månadspris vid 30+ dagar. Lämna tomt för att bara använda dagspriset.
+      </p>
 
       <div className="flex flex-col gap-1.5">
         <Label>Bilder</Label>

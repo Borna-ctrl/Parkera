@@ -21,6 +21,7 @@ function dayCount(range: DateRange): number {
 export function BookingForm({
   listingId,
   pricePerDay,
+  pricePerWeek,
   pricePerMonth,
   blocked,
   availableFrom,
@@ -28,6 +29,7 @@ export function BookingForm({
 }: {
   listingId: string;
   pricePerDay: number;
+  pricePerWeek?: number;
   pricePerMonth?: number;
   blocked: BlockedRange[];
   availableFrom?: string | null;
@@ -58,10 +60,26 @@ export function BookingForm({
   const days = range ? dayCount(range) : 0;
   let total = 0;
   let priceLabel = "";
-  if (days >= 31 && pricePerMonth) {
-    const months = Math.floor(days / 30);
-    total = months * pricePerMonth;
-    priceLabel = `${months} mån × ${pricePerMonth} kr (månadspris)`;
+  if (days >= 30 && pricePerMonth) {
+    const fullMonths = Math.floor(days / 30);
+    const remainder = days % 30;
+    const fullWeeks = pricePerWeek && remainder >= 7 ? Math.floor(remainder / 7) : 0;
+    const leftover = remainder - fullWeeks * 7;
+    total =
+      fullMonths * pricePerMonth +
+      fullWeeks * (pricePerWeek ?? 0) +
+      leftover * pricePerDay;
+    const parts: string[] = [`${fullMonths} mån × ${pricePerMonth} kr`];
+    if (fullWeeks > 0 && pricePerWeek) parts.push(`${fullWeeks} v × ${pricePerWeek} kr`);
+    if (leftover > 0) parts.push(`${leftover} d × ${pricePerDay} kr`);
+    priceLabel = parts.join(" + ");
+  } else if (days >= 7 && pricePerWeek) {
+    const fullWeeks = Math.floor(days / 7);
+    const leftover = days % 7;
+    total = fullWeeks * pricePerWeek + leftover * pricePerDay;
+    const parts: string[] = [`${fullWeeks} v × ${pricePerWeek} kr`];
+    if (leftover > 0) parts.push(`${leftover} d × ${pricePerDay} kr`);
+    priceLabel = parts.join(" + ");
   } else {
     total = days * pricePerDay;
     priceLabel = `${days} dygn × ${pricePerDay} kr`;

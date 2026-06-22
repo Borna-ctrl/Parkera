@@ -72,7 +72,7 @@ export async function createBooking(
   const { data: listing } = await supabase
     .from("listings")
     .select(
-      "owner_id, status, available_from, available_to, price_per_day, price_per_month, title"
+      "owner_id, status, available_from, available_to, price_per_day, price_per_week, price_per_month, title"
     )
     .eq("id", listingId)
     .single();
@@ -100,10 +100,24 @@ export async function createBooking(
   }
 
   const days = dayCount(start, end);
+  const weekPrice = listing.price_per_week as number | null;
   const monthPrice = listing.price_per_month as number | null;
   let amountTotal: number;
-  if (days >= 31 && monthPrice) {
-    amountTotal = Math.floor(days / 30) * monthPrice * 100;
+
+  if (days >= 30 && monthPrice) {
+    const fullMonths = Math.floor(days / 30);
+    const remainder = days % 30;
+    const fullWeeks = weekPrice && remainder >= 7 ? Math.floor(remainder / 7) : 0;
+    const leftover = remainder - fullWeeks * 7;
+    amountTotal =
+      (fullMonths * monthPrice +
+        fullWeeks * (weekPrice ?? 0) +
+        leftover * listing.price_per_day) *
+      100;
+  } else if (days >= 7 && weekPrice) {
+    const fullWeeks = Math.floor(days / 7);
+    const leftover = days % 7;
+    amountTotal = (fullWeeks * weekPrice + leftover * listing.price_per_day) * 100;
   } else {
     amountTotal = days * listing.price_per_day * 100;
   }
