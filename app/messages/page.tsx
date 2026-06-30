@@ -19,7 +19,7 @@ export default async function MessagesPage() {
   const { data } = await supabase
     .from("conversations")
     .select(
-      "id, owner_id, renter_id, last_message_at, listing:listings(title), owner:profiles!conversations_owner_id_fkey(full_name, avatar_url), renter:profiles!conversations_renter_id_fkey(full_name, avatar_url)"
+      "id, owner_id, renter_id, last_message_at, owner_last_read_at, renter_last_read_at, listing:listings(title), owner:profiles!conversations_owner_id_fkey(full_name, avatar_url), renter:profiles!conversations_renter_id_fkey(full_name, avatar_url)"
     )
     .or(`owner_id.eq.${user.id},renter_id.eq.${user.id}`)
     .order("last_message_at", { ascending: false });
@@ -34,12 +34,14 @@ export default async function MessagesPage() {
     );
     const isOwner = c.owner_id === user.id;
     const other = isOwner ? renter : owner;
+    const lastRead = isOwner ? c.owner_last_read_at : c.renter_last_read_at;
     return {
       id: c.id,
       listingTitle: listing?.title ?? "Annons",
       counterpart: other?.full_name?.trim() || (isOwner ? "Hyresgäst" : "Uthyrare"),
       counterpartAvatar: other?.avatar_url ?? null,
       lastMessageAt: c.last_message_at,
+      unread: new Date(c.last_message_at) > new Date(lastRead),
     };
   });
 

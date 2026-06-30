@@ -6,11 +6,23 @@ import { DayPicker, type DateRange } from "react-day-picker";
 import { sv } from "react-day-picker/locale";
 import "react-day-picker/style.css";
 
+import dynamic from "next/dynamic";
+
 import { DISTRICTS, PARKING_TYPES } from "@/lib/constants";
 import { toISODate, parseISODate } from "@/lib/dates";
 import { createListing, updateListing } from "@/lib/listings/actions";
 import { ImageUploader } from "@/components/image-uploader";
 import { Button } from "@/components/ui/button";
+
+const ListingMapEditor = dynamic(
+  () => import("@/components/listing-map-editor").then((m) => m.ListingMapEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-56 animate-pulse rounded-md border border-border bg-muted" />
+    ),
+  }
+);
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -29,6 +41,8 @@ export type ListingFormValues = {
   image_paths: string[];
   available_from?: string;
   available_to?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 const availabilityFmt = new Intl.DateTimeFormat("sv-SE", {
@@ -59,6 +73,12 @@ export function ListingForm({
         }
       : undefined
   );
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | undefined>(
+    initial?.latitude != null && initial?.longitude != null
+      ? { lat: initial.latitude, lng: initial.longitude }
+      : undefined
+  );
+  const [address, setAddress] = useState(initial?.address ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,6 +102,8 @@ export function ListingForm({
       price_per_day: Number(formData.get("price_per_day") ?? 0),
       price_per_week: rawWeek ? Number(rawWeek) : undefined,
       price_per_month: rawMonth ? Number(rawMonth) : undefined,
+      latitude: coords?.lat,
+      longitude: coords?.lng,
       image_paths: imagePaths,
       available_from: availability?.from ? toISODate(availability.from) : "",
       available_to: availability?.to ? toISODate(availability.to) : "",
@@ -176,6 +198,20 @@ export function ListingForm({
           maxLength={120}
           defaultValue={initial?.address}
           placeholder="Visas bara för dig tills en bokning accepterats"
+          onChange={(e) => setAddress(e.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label>Plats på karta (valfritt)</Label>
+        <p className="text-sm text-muted-foreground">
+          Visar en ungefärlig cirkel för hyresgästen — inte exakt adress.
+        </p>
+        <ListingMapEditor
+          initialLat={initial?.latitude}
+          initialLng={initial?.longitude}
+          address={address}
+          onChange={(lat, lng) => setCoords({ lat, lng })}
         />
       </div>
 

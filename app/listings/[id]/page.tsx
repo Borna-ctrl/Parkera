@@ -5,6 +5,8 @@ import { CalendarDays, MapPin } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { BookingForm } from "@/components/booking-form";
 import { ImageGallery } from "@/components/image-gallery";
+import { ListingMapDisplayWrapper } from "@/components/listing-map-display-wrapper";
+import { SendMessageButton } from "@/components/send-message-button";
 import { Button } from "@/components/ui/button";
 import { parkingTypeLabel } from "@/lib/constants";
 import { parseISODate } from "@/lib/dates";
@@ -66,7 +68,12 @@ export default async function ListingDetailPage({
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="grid gap-8 md:grid-cols-2">
-        <ImageGallery paths={images} />
+        <div className="flex flex-col gap-4">
+          <ImageGallery paths={images} />
+          {listing.latitude != null && listing.longitude != null && (
+            <ListingMapDisplayWrapper lat={listing.latitude} lng={listing.longitude} />
+          )}
+        </div>
 
         <div className="flex flex-col gap-4">
           <div>
@@ -111,13 +118,21 @@ export default async function ListingDetailPage({
             </p>
           )}
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Avatar
-              name={ownerName}
-              path={listing.owner?.avatar_url}
-              size={32}
-            />
-            <span>Uthyrs av {ownerName}</span>
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Avatar
+                name={ownerName}
+                path={listing.owner?.avatar_url}
+                size={40}
+              />
+              <div>
+                <p className="text-xs text-muted-foreground">Uthyrs av</p>
+                <p className="font-medium">{ownerName}</p>
+              </div>
+            </div>
+            {!isOwner && user && (
+              <SendMessageButton listingId={listing.id} />
+            )}
           </div>
 
           {listing.status === "removed" && (

@@ -52,6 +52,18 @@ export const listingSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Ogiltigt datum")
     .optional()
     .or(z.literal("")),
+  latitude: z.coerce
+    .number()
+    .min(-90)
+    .max(90)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+  longitude: z.coerce
+    .number()
+    .min(-180)
+    .max(180)
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 }).refine(
   (d) => !d.available_from || !d.available_to || d.available_to >= d.available_from,
   { message: "Slutdatum måste vara efter startdatum", path: ["available_to"] }
@@ -70,4 +82,6 @@ export type RawListingInput = {
   image_paths: string[];
   available_from?: string;
   available_to?: string;
+  latitude?: number | "";
+  longitude?: number | "";
 };

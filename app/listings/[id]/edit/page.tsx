@@ -42,6 +42,8 @@ export default async function EditListingPage({
     price_per_day: listing.price_per_day,
     price_per_week: listing.price_per_week ?? undefined,
     price_per_month: listing.price_per_month ?? undefined,
+    latitude: listing.latitude ?? undefined,
+    longitude: listing.longitude ?? undefined,
     image_paths: [...(listing.listing_images ?? [])]
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((img) => img.storage_path),

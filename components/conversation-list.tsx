@@ -8,6 +8,7 @@ export type ConversationListItem = {
   counterpart: string;
   counterpartAvatar: string | null;
   lastMessageAt: string;
+  unread: boolean;
 };
 
 const dateFmt = new Intl.DateTimeFormat("sv-SE", {
@@ -46,9 +47,14 @@ export function ConversationList({
                 {c.counterpart}
               </p>
             </div>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {dateFmt.format(new Date(c.lastMessageAt))}
-            </span>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <span className="text-xs text-muted-foreground">
+                {dateFmt.format(new Date(c.lastMessageAt))}
+              </span>
+              {c.unread && (
+                <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+              )}
+            </div>
           </Link>
         </li>
       ))}
