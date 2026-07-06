@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { BookingActions } from "@/components/booking-actions";
+import { BookingTimeline } from "@/components/booking-timeline";
 import { MessageThread } from "@/components/message-thread";
+import { getBookingTimeline } from "@/lib/bookings/timeline";
 import { one } from "@/lib/relations";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,6 +48,41 @@ export default async function ConversationPage({
     .select("id, sender_id, body, created_at")
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
+
+  // En konversation kan i teorin höra ihop med flera bokningar över tid (samma
+  // hyresgäst/uthyrare/annons, olika datum) — visa den senaste aktiva, annars senaste totalt.
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select(
+      "id, status, payment_status, start_date, end_date, accepted_at, listing:listings(status)"
+    )
+    .eq("listing_id", conversation.listing_id)
+    .eq("renter_id", conversation.renter_id)
+    .order("created_at", { ascending: false });
+
+  const relevantBooking =
+    (bookings ?? []).find((b) => b.status === "pending" || b.status === "accepted") ??
+    (bookings ?? [])[0] ??
+    null;
+
+  const timelineSteps = relevantBooking
+    ? getBookingTimeline({
+        status: relevantBooking.status as "pending" | "accepted" | "declined" | "cancelled",
+        paymentStatus: relevantBooking.payment_status as
+          | "none"
+          | "authorized"
+          | "captured"
+          | "paid_out"
+          | "refunded"
+          | "failed",
+        startDate: relevantBooking.start_date,
+        endDate: relevantBooking.end_date,
+        acceptedAt: relevantBooking.accepted_at,
+      })
+    : null;
+  const relevantBookingListing = relevantBooking
+    ? one<{ status: string }>(relevantBooking.listing)
+    : null;
 
   const listing = one<{ title: string }>(conversation.listing);
   const owner = one<{ full_name: string | null; avatar_url: string | null }>(
@@ -92,6 +130,22 @@ export default async function ConversationPage({
           <p className="text-sm text-muted-foreground">{counterpart}</p>
         </div>
       </div>
+
+      {timelineSteps && relevantBooking && (
+        <div className="mb-6 flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
+          <BookingTimeline steps={timelineSteps} />
+          <BookingActions
+            booking={{
+              id: relevantBooking.id,
+              status: relevantBooking.status,
+              paymentStatus: relevantBooking.payment_status,
+              acceptedAt: relevantBooking.accepted_at,
+              removed: relevantBookingListing?.status === "removed",
+            }}
+            perspective={isOwner ? "owner" : "renter"}
+          />
+        </div>
+      )}
 
       <MessageThread
         conversationId={conversationId}

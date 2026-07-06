@@ -1,15 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-import {
-  transitionBooking,
-  startBookingPayment,
-  type BookingAction,
-} from "@/lib/bookings/actions";
-import { Button } from "@/components/ui/button";
+import { BookingActions } from "@/components/booking-actions";
+import { BookingTimeline } from "@/components/booking-timeline";
+import { getBookingTimeline } from "@/lib/bookings/timeline";
 
 export type BookingCardData = {
   id: string;
@@ -24,13 +19,6 @@ export type BookingCardData = {
   pricePerDay: number;
   counterpart?: string;
   acceptedAt?: string;
-};
-
-const STATUS: Record<string, { label: string; className: string }> = {
-  pending: { label: "Väntar på svar", className: "bg-accent text-accent-foreground" },
-  accepted: { label: "Accepterad", className: "bg-primary/10 text-primary" },
-  declined: { label: "Nekad", className: "bg-muted text-muted-foreground" },
-  cancelled: { label: "Avbokad", className: "bg-muted text-muted-foreground" },
 };
 
 const PAYMENT: Record<string, string> = {
@@ -67,24 +55,19 @@ export function BookingRequestCard({
   booking: BookingCardData;
   perspective: "owner" | "renter";
 }) {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!booking.acceptedAt || booking.paymentStatus !== "none" || booking.status !== "accepted") return;
-    const deadline = new Date(booking.acceptedAt).getTime() + 60 * 60 * 1000;
-    const tick = () => setTimeLeft(Math.max(0, deadline - Date.now()));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [booking.acceptedAt, booking.paymentStatus, booking.status]);
-
-  const status = STATUS[booking.status] ?? {
-    label: booking.status,
-    className: "bg-muted text-muted-foreground",
-  };
+  const timelineSteps = getBookingTimeline({
+    status: booking.status as "pending" | "accepted" | "declined" | "cancelled",
+    paymentStatus: (booking.paymentStatus ?? "none") as
+      | "none"
+      | "authorized"
+      | "captured"
+      | "paid_out"
+      | "refunded"
+      | "failed",
+    startDate: booking.start_date,
+    endDate: booking.end_date,
+    acceptedAt: booking.acceptedAt ?? null,
+  });
   const days = nights(booking.start_date, booking.end_date);
   const total =
     booking.amountTotal != null
@@ -100,30 +83,6 @@ export function BookingRequestCard({
         ? "Väntar på betalning"
         : (booking.paymentStatus && PAYMENT[booking.paymentStatus]) ?? null
       : null;
-
-  async function act(action: BookingAction) {
-    setError(null);
-    setPending(true);
-    const result = await transitionBooking(booking.id, action);
-    if (result.error) {
-      setError(result.error);
-      setPending(false);
-      return;
-    }
-    router.refresh();
-  }
-
-  async function pay() {
-    setError(null);
-    setPending(true);
-    const result = await startBookingPayment(booking.id);
-    if (result.error || !result.url) {
-      setError(result.error ?? "Kunde inte starta betalningen.");
-      setPending(false);
-      return;
-    }
-    window.location.href = result.url;
-  }
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
@@ -151,79 +110,23 @@ export function BookingRequestCard({
               Borttagen annons
             </span>
           )}
-          <span
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${status.className}`}
-          >
-            {status.label}
-          </span>
+          <BookingTimeline steps={timelineSteps} compact />
           {paymentLabel && (
             <span className="text-xs text-muted-foreground">{paymentLabel}</span>
           )}
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {booking.status === "pending" && perspective === "owner" && !removed && (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => act("accept")} disabled={pending}>
-            Acceptera
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => act("decline")}
-            disabled={pending}
-          >
-            Neka
-          </Button>
-        </div>
-      )}
-
-      {booking.status === "pending" && perspective === "renter" && !removed && (
-        <div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => act("cancel")}
-            disabled={pending}
-          >
-            Avboka förfrågan
-          </Button>
-        </div>
-      )}
-
-      {awaitingPayment && perspective === "renter" && !removed && (
-        <>
-          {timeLeft !== null && timeLeft <= 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Betalningstiden gick ut — bokningen avbokas automatiskt.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {timeLeft !== null && timeLeft > 0 && (
-                <p className="text-sm font-medium text-destructive">
-                  ⏱ {Math.floor(timeLeft / 60000)} min{" "}
-                  {Math.floor((timeLeft % 60000) / 1000)} sek kvar att betala
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button size="sm" onClick={pay} disabled={pending}>
-                  {pending ? "Öppnar…" : "Betala nu"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => act("cancel")}
-                  disabled={pending}
-                >
-                  Avboka
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      <BookingActions
+        booking={{
+          id: booking.id,
+          status: booking.status,
+          paymentStatus: booking.paymentStatus,
+          acceptedAt: booking.acceptedAt,
+          removed,
+        }}
+        perspective={perspective}
+      />
     </div>
   );
 }

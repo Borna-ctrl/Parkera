@@ -48,12 +48,12 @@ export function ListingMapDisplay({ lat, lng }: { lat: number; lng: number }) {
           <Layer
             id="circle-fill"
             type="fill"
-            paint={{ "fill-color": "#0d9488", "fill-opacity": 0.25 }}
+            paint={{ "fill-color": "#1b4965", "fill-opacity": 0.25 }}
           />
           <Layer
             id="circle-line"
             type="line"
-            paint={{ "line-color": "#0d9488", "line-width": 2 }}
+            paint={{ "line-color": "#1b4965", "line-width": 2 }}
           />
         </Source>
       </Map>

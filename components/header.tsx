@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { SquareParking } from "lucide-react";
 
 import { ChatBubble } from "@/components/chat-bubble";
 import { Button } from "@/components/ui/button";
@@ -35,7 +34,9 @@ export async function Header() {
           href="/"
           className="flex items-center gap-2 text-lg font-semibold tracking-tight"
         >
-          <SquareParking className="h-6 w-6 text-primary" />
+          <span className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-primary text-primary-foreground text-lg font-extrabold leading-none">
+            P
+          </span>
           <span>Parkera</span>
         </Link>
 
