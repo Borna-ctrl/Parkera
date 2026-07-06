@@ -32,11 +32,19 @@ export type HomepageMapListing = {
   longitude: number;
 };
 
+function centroid(listings: HomepageMapListing[]): { longitude: number; latitude: number } {
+  const lng = listings.reduce((s, l) => s + l.longitude, 0) / listings.length;
+  const lat = listings.reduce((s, l) => s + l.latitude, 0) / listings.length;
+  return { longitude: lng, latitude: lat };
+}
+
 export function HomepageMap({ listings }: { listings: HomepageMapListing[] }) {
   const circlesGeoJSON = {
     type: "FeatureCollection" as const,
     features: listings.map((l) => makeCircle(l.longitude, l.latitude)),
   };
+
+  const center = centroid(listings);
 
   return (
     <section className="mt-8">
@@ -60,8 +68,8 @@ export function HomepageMap({ listings }: { listings: HomepageMapListing[] }) {
         <Map
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={MAPBOX_STYLE}
-          initialViewState={{ longitude: 11.97, latitude: 57.706, zoom: 11.5 }}
-          interactive={false}
+          initialViewState={{ ...center, zoom: 11.5 }}
+          cooperativeGestures
           style={{ width: "100%", height: "100%" }}
         >
           <Source id="circles" type="geojson" data={circlesGeoJSON}>
